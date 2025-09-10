@@ -43,7 +43,7 @@ def index():
         "index.html",
         title="Movies Watchlist",
         movies_data=movies
-        
+
     )
 
 @pages.route("/register", methods=["GET", "POST"])
@@ -119,6 +119,7 @@ def delete_movie(_id: str):
 @login_required
 def add_movie():
     form = MovieForm()
+    
 
     if form.validate_on_submit():
         movie = Movie(**{
@@ -126,14 +127,34 @@ def add_movie():
             'title': form.title.data,
             'director': form.director.data,
             'year': form.year.data,
+            'title_lower': form.title.data.lower()
+            
         })
 
-        current_app.db.movie.insert_one(asdict(movie))
-        current_app.db.user.update_one(
-            {"_id": session["user_id"]}, {"$push": {"movies": movie._id}}
-        )
-        
-        return redirect(url_for('.movie', _id=movie._id))
+        title_lower = form.title.data.lower()
+
+        match = current_app.db.movie.find_one({"title_lower": title_lower})
+        if match:
+            match_movie = Movie(**match)
+            # Add the existing movie to the user's watchlist if not already there
+            current_app.db.user.update_one(
+                {"_id": session["user_id"], "movies": {"$ne": match_movie._id}}, 
+                {"$push": {"movies": match_movie._id}}
+            )
+            # Add user to the movie's followers if not already there
+            current_app.db.movie.update_one(
+                {"_id": match_movie._id, "followers": {"$ne": session["user_id"]}}, 
+                {"$push": {"followers": session["user_id"]}}
+            )
+            return redirect(url_for('.movie', _id=match_movie._id))
+        else:
+            current_app.db.movie.insert_one(asdict(movie))
+            current_app.db.movie.update_one({"_id": movie._id}, {"$push": {"followers": session["user_id"]}})
+            current_app.db.user.update_one(
+                {"_id": session["user_id"]}, {"$push": {"movies": movie._id} }
+            )
+            
+            return redirect(url_for('.movie', _id=movie._id))
     
     return render_template(
         'new_movie.html', 
