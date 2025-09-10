@@ -15,6 +15,8 @@ class Movie:
     tags: list[str] = field(default_factory=list)
     description: str = None
     video_link: str = None
+    followers: list[str] = field(default_factory=list)
+    title_lower: str = None
 
 @dataclass
 class User:
